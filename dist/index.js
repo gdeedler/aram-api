@@ -8,13 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __asyncValues = (this && this.__asyncValues) || function (o) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var m = o[Symbol.asyncIterator], i;
-    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
-    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
-    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -22,7 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const morgan_1 = __importDefault(require("morgan"));
 const mongoose_1 = __importDefault(require("mongoose"));
-const mongoose_2 = require("mongoose");
+const riotApi_1 = __importDefault(require("./riotApi"));
+const db_1 = require("./db");
+require('dotenv').config();
 mongoose_1.default.set('strictQuery', true);
 const app = (0, express_1.default)();
 const port = 3010;
@@ -32,59 +27,56 @@ function main() {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
         app.get('/stats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
-            const response = (yield Match.count({
-                'info.participants.summonerName': req.params.summonerName,
-            })) + '';
-            console.log('Match: ', response);
-            res.send(response).status(200);
+            res.sendStatus(200);
         }));
-        app.get('/champstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
-            var e_1, _a;
-            var _b;
-            const response = {};
+        app.get('/stats/:summonerName/refresh', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
-                for (var _c = __asyncValues(Match.find({
-                    'info.participants.summonerName': req.params.summonerName,
-                })), _d; _d = yield _c.next(), !_d.done;) {
-                    const doc = _d.value;
-                    for (const { summonerName, championName, win } of (_b = doc.info) === null || _b === void 0 ? void 0 : _b.participants) {
-                        if (summonerName === req.params.summonerName) {
-                            if (typeof championName === 'string' && typeof win === 'boolean') {
-                                if (!response[championName]) {
-                                    response[championName] = { champion: championName, games: 0, wins: 0 };
-                                }
-                                response[championName].games++;
-                                if (win)
-                                    response[championName].wins++;
-                            }
-                        }
-                    }
-                }
+                const result = yield pullNewMatchesForSummoner(req.params.summonerName);
+                res.send(`${result} matches updated`).status(200);
             }
-            catch (e_1_1) { e_1 = { error: e_1_1 }; }
-            finally {
-                try {
-                    if (_d && !_d.done && (_a = _c.return)) yield _a.call(_c);
-                }
-                finally { if (e_1) throw e_1.error; }
+            catch (error) {
+                console.error(error);
+                res.sendStatus(400);
             }
-            let champData = [];
-            for (const champion in response) {
-                champData.push(response[champion]);
-            }
-            champData.sort((a, b) => b.games - a.games);
-            res.send(champData);
         }));
         app.listen(port, () => console.log(`Server listening on port ${port}`));
     });
 }
 main();
-const matchSchema = new mongoose_2.Schema({
-    metadata: {
-        dataVersion: String,
-        matchId: { type: String, index: { unique: true } },
-        participants: [String],
-    },
-    info: {},
-});
-const Match = mongoose_1.default.model('Match', matchSchema);
+function pullNewMatchesForSummoner(summonerName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const response = yield riotApi_1.default.getSummonerPuuid(summonerName);
+        const puuid = response.data.puuid;
+        let matches = [];
+        let count = 0;
+        let areMoreMatches = true;
+        while (areMoreMatches) {
+            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count);
+            if (aramMatchResponse.data.length === 0) {
+                areMoreMatches = false;
+                break;
+            }
+            matches = matches.concat(aramMatchResponse.data);
+            count += 100;
+        }
+        const newMatchIds = [];
+        for (const match of matches) {
+            const documentExists = yield db_1.Match.count({ 'metadata.matchId': match });
+            if (!documentExists)
+                newMatchIds.push(match);
+        }
+        console.log(`${newMatchIds.length} matches to save`);
+        const newMatchData = [];
+        for (const match of newMatchIds) {
+            const response = yield riotApi_1.default.getMatchData(match);
+            newMatchData.push(response.data);
+        }
+        const result = yield db_1.Match.create(newMatchData);
+        console.log(`${result.length} matches saved to database`);
+        return result.length;
+    });
+}
+function buildSummonerStats(summonerName) {
+    return __awaiter(this, void 0, void 0, function* () {
+    });
+}

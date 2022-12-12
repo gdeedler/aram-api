@@ -2,6 +2,9 @@ import express from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
 import { Schema } from 'mongoose';
+import api from './riotApi';
+import {Match, Stats} from './db';
+require('dotenv').config();
 
 mongoose.set('strictQuery', true);
 
@@ -15,51 +18,57 @@ async function main() {
   console.log('Connected to DB');
 
   app.get('/stats/:summonerName', async (req, res) => {
-    const response =
-      (await Match.count({
-        'info.participants.summonerName': req.params.summonerName,
-      })) + '';
-    console.log('Match: ', response);
-    res.send(response).status(200);
-  });
+    res.sendStatus(200);
+  })
 
-  app.get('/champstats/:summonerName', async (req, res) => {
-    const response: AramStats = {};
-    for await (const doc of Match.find({
-      'info.participants.summonerName': req.params.summonerName,
-    })) {
-      for(const {summonerName, championName, win} of doc.info?.participants) {
-        if (summonerName === req.params.summonerName) {
-          if(typeof championName === 'string' && typeof win === 'boolean') {
-            if (!response[championName]) {
-              response[championName] = {champion: championName, games: 0, wins: 0}
-            }
-            response[championName].games++;
-            if (win) response[championName].wins++
-          }
-        }
-      }
+  app.get('/stats/:summonerName/refresh', async (req, res) => {
+    try {
+      const result = await pullNewMatchesForSummoner(req.params.summonerName);
+      res.send(`${result} matches updated`).status(200);
+    } catch(error) {
+      console.error(error);
+      res.sendStatus(400);
     }
-    let champData: ChampStats[] = [];
-    for (const champion in response) {
-      champData.push(response[champion])
-    }
-    champData.sort((a, b) => b.games - a.games)
-
-    res.send(champData);
-  });
+  })
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 }
 
 main();
 
-const matchSchema = new Schema({
-  metadata: {
-    dataVersion: String,
-    matchId: { type: String, index: { unique: true } },
-    participants: [String],
-  },
-  info: {},
-});
-const Match = mongoose.model('Match', matchSchema);
+
+
+async function pullNewMatchesForSummoner(summonerName: string) {
+  const response = await api.getSummonerPuuid(summonerName);
+  const puuid = response.data.puuid;
+  let matches: string[] = [];
+  let count = 0;
+  let areMoreMatches = true;
+  while (areMoreMatches) {
+    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count);
+    if(aramMatchResponse.data.length === 0) {
+      areMoreMatches = false;
+      break;
+    }
+    matches = matches.concat(aramMatchResponse.data);
+    count += 100;
+  }
+  const newMatchIds: string[] = [];
+  for (const match of matches) {
+    const documentExists = await Match.count({'metadata.matchId': match});
+    if(!documentExists) newMatchIds.push(match);
+  }
+  console.log(`${newMatchIds.length} matches to save`)
+  const newMatchData = [];
+  for (const match of newMatchIds) {
+    const response = await api.getMatchData(match);
+    newMatchData.push(response.data);
+  }
+  const result = await Match.create(newMatchData);
+  console.log(`${result.length} matches saved to database`);
+  return result.length;
+}
+
+async function buildSummonerStats(summonerName: string) {
+
+}
