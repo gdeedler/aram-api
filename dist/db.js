@@ -29,17 +29,26 @@ const matchSchema = new mongoose_1.Schema({
     metadata: {
         dataVersion: String,
         matchId: { type: String, index: { unique: true } },
-        participants: [String],
+        participants: { type: [String], index: true },
     },
-    info: {},
-});
+    info: {
+        participants: [
+            {
+                puuid: { type: String, index: true },
+                win: Boolean,
+                pentaKills: Number,
+                championName: String,
+            },
+        ],
+    },
+}, { strict: false });
 const champSchema = new mongoose_1.Schema({
     name: String,
     games: Number,
     wins: Number,
     losses: Number,
     winrate: Number,
-    pentakills: Number,
+    pentaKills: Number,
 });
 const statsSchema = new mongoose_1.Schema({
     puuid: String,

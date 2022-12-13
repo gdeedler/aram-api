@@ -3,7 +3,7 @@ import morgan from 'morgan';
 import mongoose from 'mongoose';
 import { Schema } from 'mongoose';
 import api from './riotApi';
-import {Match, Stats} from './db';
+import { Match, Stats } from './db';
 require('dotenv').config();
 
 mongoose.set('strictQuery', true);
@@ -18,25 +18,24 @@ async function main() {
   console.log('Connected to DB');
 
   app.get('/stats/:summonerName', async (req, res) => {
+    buildSummonerStats(req.params.summonerName);
     res.sendStatus(200);
-  })
+  });
 
   app.get('/stats/:summonerName/refresh', async (req, res) => {
     try {
       const result = await pullNewMatchesForSummoner(req.params.summonerName);
       res.send(`${result} matches updated`).status(200);
-    } catch(error) {
+    } catch (error) {
       console.error(error);
       res.sendStatus(400);
     }
-  })
+  });
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 }
 
 main();
-
-
 
 async function pullNewMatchesForSummoner(summonerName: string) {
   const response = await api.getSummonerPuuid(summonerName);
@@ -46,7 +45,7 @@ async function pullNewMatchesForSummoner(summonerName: string) {
   let areMoreMatches = true;
   while (areMoreMatches) {
     const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count);
-    if(aramMatchResponse.data.length === 0) {
+    if (aramMatchResponse.data.length === 0) {
       areMoreMatches = false;
       break;
     }
@@ -55,10 +54,10 @@ async function pullNewMatchesForSummoner(summonerName: string) {
   }
   const newMatchIds: string[] = [];
   for (const match of matches) {
-    const documentExists = await Match.count({'metadata.matchId': match});
-    if(!documentExists) newMatchIds.push(match);
+    const documentExists = await Match.count({ 'metadata.matchId': match });
+    if (!documentExists) newMatchIds.push(match);
   }
-  console.log(`${newMatchIds.length} matches to save`)
+  console.log(`${newMatchIds.length} matches to save`);
   const newMatchData = [];
   for (const match of newMatchIds) {
     const response = await api.getMatchData(match);
@@ -69,6 +68,78 @@ async function pullNewMatchesForSummoner(summonerName: string) {
   return result.length;
 }
 
-async function buildSummonerStats(summonerName: string) {
+async function buildSummonerStats(summonerName: string, puuid: string = '') {
+  if (puuid.length === 0) {
+    const response = await api.getSummonerPuuid(summonerName);
+    puuid = response.data.puuid;
+  }
+  const matches = await Match.find({ 'info.participants.puuid': puuid });
+  const summonerStats: SummonerStats = {
+    summonerName,
+    puuid,
+    games: 0,
+    wins: 0,
+    losses: 0,
+    winrate: 0,
+    pentaKills: 0,
+  };
 
+  const champHash: ChampHash = {};
+  const playerStats = [];
+
+  for (const match of matches) {
+    if (match.info?.participants) {
+      for (const participant of match.info.participants) {
+        if(participant.puuid === puuid) {
+          playerStats.push(participant);
+        }
+      }
+    }
+  }
+  for (const {championName, win, pentaKills} of playerStats) {
+    //Summoner data
+    summonerStats.games++;
+    if (win) {
+      summonerStats.wins++;
+    } else {
+      summonerStats.losses++;
+    }
+    if (pentaKills) {
+      summonerStats.pentaKills += pentaKills
+    }
+
+    //Champion data splitting
+    if(!championName) break;
+    if (!champHash[championName]) {
+      champHash[championName] = {
+        champion: championName,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        winrate: 0,
+        pentaKills: 0,
+      }
+    }
+    champHash[championName].games++;
+    if (win) {
+      champHash[championName].wins++;
+    } else {
+      champHash[championName].losses++;
+    }
+    if(pentaKills) champHash[championName].pentaKills += pentaKills;
+  }
+
+  //Summoner data calculations
+  summonerStats.winrate = Math.trunc((summonerStats.wins / summonerStats.games) * 100);
+
+  //Champion data calculations and array building, then sort by games
+  const champDataArray: ChampStats[] = []
+  Object.values(champHash).forEach((champ) => {
+    champ.winrate = Math.trunc((champ.wins / champ.games) * 100);
+    champDataArray.push(champ);
+  })
+  champDataArray.sort((a, b) => a.games - b.games);
+
+  console.log(champDataArray);
+  console.log(summonerStats);
 }
