@@ -32,8 +32,10 @@ function main() {
         }));
         app.get('/stats/:summonerName/refresh', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
-                const result = yield pullNewMatchesForSummoner(req.params.summonerName);
-                res.send(`${result} matches updated`).status(200);
+                let count = yield pullNewMatchesForSummoner(req.params.summonerName);
+                let stats = yield buildSummonerStats(req.params.summonerName);
+                console.log(stats);
+                res.send(stats).status(200);
             }
             catch (error) {
                 console.error(error);
@@ -148,8 +150,7 @@ function buildSummonerStats(summonerName, puuid = '') {
             champ.winrate = Math.trunc((champ.wins / champ.games) * 100);
             champDataArray.push(champ);
         });
-        champDataArray.sort((a, b) => a.games - b.games);
-        console.log(champDataArray);
-        console.log(summonerStats);
+        champDataArray.sort((a, b) => b.games - a.games);
+        return { champDataArray, summonerStats };
     });
 }
