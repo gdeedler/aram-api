@@ -31,12 +31,10 @@ const champSchema = new Schema({
 });
 
 const statsSchema = new Schema({
-  puuid: String,
-  summonerName: String,
-  games: Number,
-  wins: Number,
-  losses: Number,
+  puuid: {type: String, index: true, unique: true},
+  summonerName: {type: String, index: true, unique: true},
   champStats: [champSchema],
+  matchStats: {},
 });
 
 const matchConnection = mongoose.createConnection(

@@ -27,15 +27,29 @@ function main() {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
         app.get('/stats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
-            buildSummonerStats(req.params.summonerName);
-            res.sendStatus(200);
+            try {
+                const stats = yield db_1.Stats.findOne({ summonerName: req.params.summonerName });
+                if (stats === null) {
+                    res.sendStatus(204);
+                    return;
+                }
+                res.send(stats).status(200);
+            }
+            catch (error) {
+                console.error(error);
+                res.sendStatus(400);
+            }
         }));
         app.get('/stats/:summonerName/refresh', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 let count = yield pullNewMatchesForSummoner(req.params.summonerName);
                 let stats = yield buildSummonerStats(req.params.summonerName);
-                console.log(stats);
-                res.send(stats).status(200);
+                if (stats.acknowledged) {
+                    res.sendStatus(200);
+                }
+                else {
+                    throw Error('Stats lookup failed');
+                }
             }
             catch (error) {
                 console.error(error);
@@ -151,6 +165,14 @@ function buildSummonerStats(summonerName, puuid = '') {
             champDataArray.push(champ);
         });
         champDataArray.sort((a, b) => b.games - a.games);
-        return { champDataArray, summonerStats };
+        const response = yield db_1.Stats.updateOne({ puuid }, {
+            puuid,
+            summonerName,
+            champStats: champDataArray,
+            matchStats: summonerStats,
+        }, {
+            upsert: true
+        });
+        return response;
     });
 }

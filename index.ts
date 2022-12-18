@@ -1,7 +1,6 @@
 import express from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
-import { Schema } from 'mongoose';
 import api from './riotApi';
 import { Match, Stats } from './db';
 require('dotenv').config();
@@ -18,16 +17,28 @@ async function main() {
   console.log('Connected to DB');
 
   app.get('/stats/:summonerName', async (req, res) => {
-    buildSummonerStats(req.params.summonerName);
-    res.sendStatus(200);
+    try {
+      const stats = await Stats.findOne({summonerName: req.params.summonerName});
+      if(stats === null) {
+        res.sendStatus(204);
+        return;
+      }
+      res.send(stats).status(200);
+    } catch (error) {
+      console.error(error);
+      res.sendStatus(400);
+    }
   });
 
   app.get('/stats/:summonerName/refresh', async (req, res) => {
     try {
       let count = await pullNewMatchesForSummoner(req.params.summonerName);
-      let stats = await buildSummonerStats(req.params.summonerName)
-      console.log(stats);
-      res.send(stats).status(200);
+      let stats = await buildSummonerStats(req.params.summonerName);
+      if(stats.acknowledged) {
+        res.sendStatus(200);
+      } else {
+        throw Error('Stats lookup failed');
+      }
     } catch (error) {
       console.error(error);
       res.sendStatus(400);
@@ -92,13 +103,13 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
   for (const match of matches) {
     if (match.info?.participants) {
       for (const participant of match.info.participants) {
-        if(participant.puuid === puuid) {
+        if (participant.puuid === puuid) {
           playerStats.push(participant);
         }
       }
     }
   }
-  for (const {championName, win, pentaKills} of playerStats) {
+  for (const { championName, win, pentaKills } of playerStats) {
     //Summoner data
     summonerStats.games++;
     if (win) {
@@ -107,11 +118,11 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
       summonerStats.losses++;
     }
     if (pentaKills) {
-      summonerStats.pentaKills += pentaKills
+      summonerStats.pentaKills += pentaKills;
     }
 
     //Champion data splitting
-    if(!championName) break;
+    if (!championName) break;
     if (!champHash[championName]) {
       champHash[championName] = {
         champion: championName,
@@ -120,7 +131,7 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
         losses: 0,
         winrate: 0,
         pentaKills: 0,
-      }
+      };
     }
     champHash[championName].games++;
     if (win) {
@@ -128,19 +139,34 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
     } else {
       champHash[championName].losses++;
     }
-    if(pentaKills) champHash[championName].pentaKills += pentaKills;
+    if (pentaKills) champHash[championName].pentaKills += pentaKills;
   }
 
   //Summoner data calculations
-  summonerStats.winrate = Math.trunc((summonerStats.wins / summonerStats.games) * 100);
+  summonerStats.winrate = Math.trunc(
+    (summonerStats.wins / summonerStats.games) * 100
+  );
 
   //Champion data calculations and array building, then sort by games
-  const champDataArray: ChampStats[] = []
+  const champDataArray: ChampStats[] = [];
   Object.values(champHash).forEach((champ) => {
     champ.winrate = Math.trunc((champ.wins / champ.games) * 100);
     champDataArray.push(champ);
-  })
+  });
   champDataArray.sort((a, b) => b.games - a.games);
 
-  return {champDataArray, summonerStats};
+  const response = await Stats.updateOne(
+    { puuid },
+    {
+      puuid,
+      summonerName,
+      champStats: champDataArray,
+      matchStats: summonerStats,
+    },
+    {
+      upsert: true
+    }
+  );
+
+  return response;
 }
