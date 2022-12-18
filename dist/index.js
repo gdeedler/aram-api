@@ -26,9 +26,20 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
+        app.use((req, res, next) => {
+            res.header('Access-Control-Allow-Origin', '*');
+            res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+            if (req.method == 'OPTIONS') {
+                res.header('Access-Control-Allow-Methods', 'PUT, POST, PATCH, DELETE, GET');
+                return res.status(200).json({});
+            }
+            next();
+        });
         app.get('/stats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
-                const stats = yield db_1.Stats.findOne({ summonerName: req.params.summonerName });
+                const stats = yield db_1.Stats.findOne({
+                    summonerName: req.params.summonerName,
+                });
                 if (stats === null) {
                     res.sendStatus(204);
                     return;
@@ -171,7 +182,7 @@ function buildSummonerStats(summonerName, puuid = '') {
             champStats: champDataArray,
             matchStats: summonerStats,
         }, {
-            upsert: true
+            upsert: true,
         });
         return response;
     });

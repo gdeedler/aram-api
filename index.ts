@@ -16,10 +16,29 @@ async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    );
+    if (req.method == 'OPTIONS') {
+      res.header(
+        'Access-Control-Allow-Methods',
+        'PUT, POST, PATCH, DELETE, GET'
+      );
+      return res.status(200).json({});
+    }
+
+    next();
+  });
+
   app.get('/stats/:summonerName', async (req, res) => {
     try {
-      const stats = await Stats.findOne({summonerName: req.params.summonerName});
-      if(stats === null) {
+      const stats = await Stats.findOne({
+        summonerName: req.params.summonerName,
+      });
+      if (stats === null) {
         res.sendStatus(204);
         return;
       }
@@ -34,7 +53,7 @@ async function main() {
     try {
       let count = await pullNewMatchesForSummoner(req.params.summonerName);
       let stats = await buildSummonerStats(req.params.summonerName);
-      if(stats.acknowledged) {
+      if (stats.acknowledged) {
         res.sendStatus(200);
       } else {
         throw Error('Stats lookup failed');
@@ -109,6 +128,7 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
       }
     }
   }
+
   for (const { championName, win, pentaKills } of playerStats) {
     //Summoner data
     summonerStats.games++;
@@ -164,7 +184,7 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
       matchStats: summonerStats,
     },
     {
-      upsert: true
+      upsert: true,
     }
   );
 

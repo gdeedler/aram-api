@@ -22,7 +22,7 @@ const matchSchema = new Schema(
 );
 
 const champSchema = new Schema({
-  name: String,
+  champion: String,
   games: Number,
   wins: Number,
   losses: Number,

@@ -43,7 +43,7 @@ const matchSchema = new mongoose_1.Schema({
     },
 }, { strict: false });
 const champSchema = new mongoose_1.Schema({
-    name: String,
+    champion: String,
     games: Number,
     wins: Number,
     losses: Number,
