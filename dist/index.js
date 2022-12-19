@@ -41,7 +41,19 @@ function main() {
                     summonerName: req.params.summonerName,
                 });
                 if (stats === null) {
-                    res.sendStatus(204);
+                    res.send({
+                        summonerName: req.params.summonerName,
+                        puuid: 0,
+                        champStats: [],
+                        matchStats: {
+                            summonerName: req.params.summonerName,
+                            games: 0,
+                            wins: 0,
+                            losses: 0,
+                            winrate: 0,
+                            pentaKills: 0,
+                        }
+                    });
                     return;
                 }
                 res.send(stats).status(200);

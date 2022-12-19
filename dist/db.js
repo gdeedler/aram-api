@@ -51,8 +51,8 @@ const champSchema = new mongoose_1.Schema({
     pentaKills: Number,
 });
 const statsSchema = new mongoose_1.Schema({
-    puuid: { type: String, index: true, unique: true },
-    summonerName: { type: String, index: true, unique: true },
+    puuid: { type: String, index: true },
+    summonerName: { type: String, index: true },
     champStats: [champSchema],
     matchStats: {},
 });

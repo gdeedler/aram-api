@@ -31,8 +31,8 @@ const champSchema = new Schema({
 });
 
 const statsSchema = new Schema({
-  puuid: {type: String, index: true, unique: true},
-  summonerName: {type: String, index: true, unique: true},
+  puuid: {type: String, index: true},
+  summonerName: {type: String, index: true},
   champStats: [champSchema],
   matchStats: {},
 });
