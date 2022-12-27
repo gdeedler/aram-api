@@ -6,13 +6,31 @@ interface ChampStats {
   champion: string;
   games: number;
   wins: number;
-  losses: number,
-  winrate: number,
-  pentaKills: number,
+  losses: number;
+  winrate: number;
+  pentaKills: number;
 }
 
 interface ChampHash {
   [champName: string]: ChampStats;
+}
+
+interface AllyHash {
+  [summonerName: string]: {
+    summonerName: string;
+    games: number;
+    wins: number;
+    losses: number;
+    winrate: number;
+  };
+}
+
+interface AllyStats {
+  summonerName: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winrate: number;
 }
 
 interface SummonerStats {
@@ -22,5 +40,5 @@ interface SummonerStats {
   wins: number;
   losses: number;
   pentaKills: number;
-  winrate: number,
+  winrate: number;
 }

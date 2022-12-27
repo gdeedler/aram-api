@@ -38,6 +38,7 @@ const matchSchema = new mongoose_1.Schema({
                 win: Boolean,
                 pentaKills: Number,
                 championName: String,
+                summonerName: String,
             },
         ],
     },
@@ -54,7 +55,24 @@ const statsSchema = new mongoose_1.Schema({
     puuid: { type: String, index: true },
     summonerName: { type: String, index: true },
     champStats: [champSchema],
-    matchStats: {},
+    matchStats: {
+        summonerName: String,
+        puuid: String,
+        games: Number,
+        wins: Number,
+        losses: Number,
+        winrate: Number,
+        pentaKills: Number,
+    },
+    allyStats: [
+        {
+            summonerName: String,
+            games: Number,
+            wins: Number,
+            losses: Number,
+            winrate: Number,
+        }
+    ]
 });
 const matchConnection = mongoose_1.default.createConnection('mongodb://localhost:27017/aram-matches');
 const Match = matchConnection.model('Match', matchSchema);

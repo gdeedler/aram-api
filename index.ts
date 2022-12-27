@@ -50,8 +50,8 @@ async function main() {
             losses: 0,
             winrate: 0,
             pentaKills: 0,
-          }
-        })
+          },
+        });
         return;
       }
       res.send(stats).status(200);
@@ -128,15 +128,19 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
     pentaKills: 0,
   };
 
-  const champHash: ChampHash = {};
   const playerStats = [];
+  const champHash: ChampHash = {};
+  const allyMatches = [];
+  const allyHash: AllyHash = {};
+  const topAllies: AllyStats[] = [];
 
   for (const match of matches) {
-    if (match.info?.participants) {
-      for (const participant of match.info.participants) {
-        if (participant.puuid === puuid) {
-          playerStats.push(participant);
-        }
+    if (!match.info?.participants) continue;
+    for (const participant of match.info.participants) {
+      if (participant.puuid === puuid) {
+        playerStats.push(participant);
+      } else {
+        allyMatches.push(participant);
       }
     }
   }
@@ -174,6 +178,29 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
     if (pentaKills) champHash[championName].pentaKills += pentaKills;
   }
 
+  for (const match of allyMatches) {
+    const allySummonerName = match.summonerName;
+    const win = match.win;
+    if(!allySummonerName) continue;
+    if(!allyHash[allySummonerName]) {
+      allyHash[allySummonerName] = {
+        summonerName: allySummonerName,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        winrate: 0,
+      }
+    }
+
+    allyHash[allySummonerName].games++;
+    if(win) {
+      allyHash[allySummonerName].wins++;
+    } else {
+      allyHash[allySummonerName].losses++;
+    }
+  }
+
+
   //Summoner data calculations
   summonerStats.winrate = Math.trunc(
     (summonerStats.wins / summonerStats.games) * 100
@@ -187,6 +214,18 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
   });
   champDataArray.sort((a, b) => b.games - a.games);
 
+  //Ally data calculations and sorting
+  for (const summoner in allyHash) {
+    if(allyHash[summoner].games > 5) {
+      topAllies.push(allyHash[summoner]);
+    }
+  }
+  topAllies.forEach((ally) => {
+    ally.winrate = Math.trunc((ally.wins / ally.games) * 100)
+  })
+  topAllies.sort((a,b) => b.games - a.games);
+
+
   const response = await Stats.updateOne(
     { puuid },
     {
@@ -194,6 +233,7 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
       summonerName,
       champStats: champDataArray,
       matchStats: summonerStats,
+      allyStats: topAllies,
     },
     {
       upsert: true,
