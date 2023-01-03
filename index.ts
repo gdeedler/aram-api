@@ -10,7 +10,7 @@ mongoose.set('strictQuery', true);
 const app = express();
 const port = 3010;
 
-app.use(morgan('dev'));
+app.use(morgan('short'));
 
 async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
