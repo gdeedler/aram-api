@@ -102,13 +102,23 @@ async function pullNewMatchesForSummoner(summonerName: string) {
     if (!documentExists) newMatchIds.push(match);
   }
   console.log(`${newMatchIds.length} matches to save`);
-  const newMatchData = [];
+  let newMatchData = [];
+  let matchSaveCount = 0;
+  let totalSaveCount = 0;
   for (const match of newMatchIds) {
     const response = await api.getMatchData(match);
     newMatchData.push(response.data);
+    matchSaveCount++;
+    totalSaveCount++;
+    if(matchSaveCount > 100) {
+      const result = await Match.create(newMatchData);
+      matchSaveCount = 0;
+      newMatchData = [];
+      console.log(`${result.length} matches saved to database`);
+    }
   }
   const result = await Match.create(newMatchData);
-  console.log(`${result.length} matches saved to database`);
+  console.log(`${totalSaveCount} matches saved to database`);
   return result.length;
 }
 
