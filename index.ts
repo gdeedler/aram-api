@@ -110,7 +110,7 @@ async function pullNewMatchesForSummoner(summonerName: string) {
     newMatchData.push(response.data);
     matchSaveCount++;
     totalSaveCount++;
-    if(matchSaveCount > 100) {
+    if(matchSaveCount > 5) {
       const result = await Match.create(newMatchData);
       matchSaveCount = 0;
       newMatchData = [];
