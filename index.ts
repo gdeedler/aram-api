@@ -2,6 +2,7 @@ import express from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
 import api from './riotApi';
+import cors from 'cors';
 import { Match, Stats } from './db';
 require('dotenv').config();
 
@@ -11,32 +12,16 @@ const app = express();
 const port = 3010;
 
 app.use(morgan('short'));
+app.use(cors());
 
 async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-    );
-    if (req.method == 'OPTIONS') {
-      res.header(
-        'Access-Control-Allow-Methods',
-        'PUT, POST, PATCH, DELETE, GET'
-      );
-      return res.status(200).json({});
-    }
-
-    next();
-  });
-
   app.get('/stats/:summonerName', async (req, res) => {
     try {
       const stats = await Stats.findOne({
-        summonerName: req.params.summonerName,
+        lowerCaseName: req.params.summonerName.toLowerCase(),
       });
       if (stats === null) {
         res.send({
@@ -123,10 +108,10 @@ async function pullNewMatchesForSummoner(summonerName: string) {
 }
 
 async function buildSummonerStats(summonerName: string, puuid: string = '') {
-  if (puuid.length === 0) {
-    const response = await api.getSummonerPuuid(summonerName);
-    puuid = response.data.puuid;
-  }
+  let response = await api.getSummonerPuuid(summonerName);
+  puuid = response.data.puuid;
+  summonerName = response.data.name;
+
   const matches = await Match.find({ 'info.participants.puuid': puuid });
   const summonerStats: SummonerStats = {
     summonerName,
@@ -236,11 +221,12 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
   topAllies.sort((a,b) => b.games - a.games);
 
 
-  const response = await Stats.updateOne(
+  const dbResponse = await Stats.updateOne(
     { puuid },
     {
       puuid,
       summonerName,
+      lowerCaseName: summonerName.toLowerCase(),
       champStats: champDataArray,
       matchStats: summonerStats,
       allyStats: topAllies,
@@ -250,5 +236,5 @@ async function buildSummonerStats(summonerName: string, puuid: string = '') {
     }
   );
 
-  return response;
+  return dbResponse;
 }

@@ -34,6 +34,7 @@ const champSchema = new Schema({
 const statsSchema = new Schema({
   puuid: {type: String, index: true},
   summonerName: {type: String, index: true},
+  lowerCaseName: {type: String, index: true},
   champStats: [champSchema],
   matchStats: {
     summonerName: String,
