@@ -84,6 +84,23 @@ async function main() {
       res.sendStatus(400);
     }
   })
+  app.get('/champstats/:summonerName', async (req, res) => {
+    try {
+      const stats = (await pgdb.getChampStats(req.params.summonerName)).rows;
+      stats.forEach((champ) => {
+        champ.games = parseInt(champ.games);
+        champ.wins = parseInt(champ.wins);
+        champ.pentaKills = parseInt(champ.pentakills);
+        champ.losses = parseInt(champ.losses);
+        champ.winrate = Math.trunc((champ.wins / champ.games) * 100);
+        delete champ.pentakills;
+      })
+      res.send(stats);
+    } catch (error) {
+      console.error(error);
+      res.sendStatus(400);
+    }
+  })
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 }
