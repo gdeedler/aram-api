@@ -32,6 +32,20 @@ function main() {
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const stats = (yield pgdb_1.default.getSummonerAndAllyStats(req.params.summonerName)).rows;
+                if (stats.length === 0) {
+                    res.send({
+                        matchStats: {
+                            summonername: req.params.summonerName,
+                            games: 0,
+                            wins: 0,
+                            losses: 0,
+                            pentaKills: 0,
+                            winrate: 0,
+                        },
+                        allyStats: [],
+                    });
+                    return;
+                }
                 stats.forEach((summoner) => {
                     summoner.wins = parseInt(summoner.wins);
                     summoner.games = parseInt(summoner.games);
@@ -80,6 +94,7 @@ function main() {
                     lastUpdated = Date.parse(response.lastupdated);
                 }
                 yield pullNewMatchesForSummoner(summonerName, puuid, lastUpdated);
+                yield pgdb_1.default.setLastUpdated(summonerName, puuid);
                 res.sendStatus(200);
             }
             catch (error) {

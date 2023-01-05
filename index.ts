@@ -24,6 +24,20 @@ async function main() {
       const stats = (
         await pgdb.getSummonerAndAllyStats(req.params.summonerName)
       ).rows;
+      if(stats.length === 0) {
+        res.send({
+          matchStats: {
+            summonername: req.params.summonerName,
+            games: 0,
+            wins: 0,
+            losses: 0,
+            pentaKills: 0,
+            winrate: 0,
+          },
+          allyStats: [],
+        })
+        return;
+      }
       stats.forEach((summoner) => {
         summoner.wins = parseInt(summoner.wins);
         summoner.games = parseInt(summoner.games);
@@ -70,6 +84,7 @@ async function main() {
         lastUpdated = Date.parse(response.lastupdated);
       }
       await pullNewMatchesForSummoner(summonerName, puuid, lastUpdated)
+      await pgdb.setLastUpdated(summonerName, puuid);
       res.sendStatus(200);
     } catch (error) {
       console.error(error);
