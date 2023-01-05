@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import api from './riotApi';
 import cors from 'cors';
 import { Match, Stats } from './db';
+import pgdb from './pgdb';
 require('dotenv').config();
 
 mongoose.set('strictQuery', true);
@@ -60,6 +61,29 @@ async function main() {
       res.sendStatus(400);
     }
   });
+
+  app.get('/summonerstats/:summonerName', async (req, res) => {
+    try {
+      const stats = (await pgdb.getSummonerAndAllyStats(req.params.summonerName)).rows;
+      stats.forEach((summoner) => {
+        summoner.wins = parseInt(summoner.wins);
+        summoner.games = parseInt(summoner.games);
+        summoner.pentaKills = parseInt(summoner.pentakills);
+        summoner.losses = parseInt(summoner.losses);
+        summoner.winrate = Math.trunc((summoner.wins / summoner.games) * 100);
+        delete summoner.pentakills;
+      })
+      const summonerStats = {
+        summonerName: stats[0].summonerName,
+        matchStats: stats.shift(),
+        allyStats: stats,
+      }
+      res.send(summonerStats);
+    } catch (error) {
+      console.error(error);
+      res.sendStatus(400);
+    }
+  })
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 }

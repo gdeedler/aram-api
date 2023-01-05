@@ -18,6 +18,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const riotApi_1 = __importDefault(require("./riotApi"));
 const cors_1 = __importDefault(require("cors"));
 const db_1 = require("./db");
+const pgdb_1 = __importDefault(require("./pgdb"));
 require('dotenv').config();
 mongoose_1.default.set('strictQuery', true);
 const app = (0, express_1.default)();
@@ -66,6 +67,29 @@ function main() {
                 else {
                     throw Error('Stats lookup failed');
                 }
+            }
+            catch (error) {
+                console.error(error);
+                res.sendStatus(400);
+            }
+        }));
+        app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
+            try {
+                const stats = (yield pgdb_1.default.getSummonerAndAllyStats(req.params.summonerName)).rows;
+                stats.forEach((summoner) => {
+                    summoner.wins = parseInt(summoner.wins);
+                    summoner.games = parseInt(summoner.games);
+                    summoner.pentaKills = parseInt(summoner.pentakills);
+                    summoner.losses = parseInt(summoner.losses);
+                    summoner.winrate = Math.trunc((summoner.wins / summoner.games) * 100);
+                    delete summoner.pentakills;
+                });
+                const summonerStats = {
+                    summonerName: stats[0].summonerName,
+                    matchStats: stats.shift(),
+                    allyStats: stats,
+                };
+                res.send(summonerStats);
             }
             catch (error) {
                 console.error(error);
