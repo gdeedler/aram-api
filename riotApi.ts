@@ -26,7 +26,7 @@ export default {
       `https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/${summonerName}`
     );
   },
-  getAramMatchIds: (puuid: string, count: number, start: number) => {
+  getAramMatchIds: (puuid: string, count: number, start: number, timestamp: number) => {
     if (count > 100 || count < 1) count = 20;
     if (start < 0) start = 0;
     return api.get(
@@ -36,6 +36,7 @@ export default {
           queue: 450, //ARAM
           count,
           start,
+          startTime: timestamp,
         },
       }
     );

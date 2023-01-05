@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import api from './riotApi';
 import cors from 'cors';
 import { Match, Stats } from './db';
+import pgdb from './pgdb';
 require('dotenv').config();
 
 mongoose.set('strictQuery', true);
@@ -18,43 +19,73 @@ async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
-  app.get('/stats/:summonerName', async (req, res) => {
+  app.get('/summonerstats/:summonerName', async (req, res) => {
     try {
-      const stats = await Stats.findOne({
-        lowerCaseName: req.params.summonerName.toLowerCase(),
-      });
-      if (stats === null) {
+      const stats = (
+        await pgdb.getSummonerAndAllyStats(req.params.summonerName)
+      ).rows;
+      if(stats.length === 0) {
         res.send({
-          summonerName: req.params.summonerName,
-          puuid: 0,
-          champStats: [],
           matchStats: {
-            summonerName: req.params.summonerName,
+            summonername: req.params.summonerName,
             games: 0,
             wins: 0,
             losses: 0,
-            winrate: 0,
             pentaKills: 0,
+            winrate: 0,
           },
-        });
+          allyStats: [],
+        })
         return;
       }
-      res.send(stats).status(200);
+      stats.forEach((summoner) => {
+        summoner.wins = parseInt(summoner.wins);
+        summoner.games = parseInt(summoner.games);
+        summoner.pentaKills = parseInt(summoner.pentakills);
+        summoner.losses = parseInt(summoner.losses);
+        summoner.winrate = Math.trunc((summoner.wins / summoner.games) * 100);
+        delete summoner.pentakills;
+      });
+      const summonerStats = {
+        summonerName: stats[0].summonerName,
+        matchStats: stats.shift(),
+        allyStats: stats,
+      };
+      res.send(summonerStats);
     } catch (error) {
       console.error(error);
       res.sendStatus(400);
     }
   });
-
-  app.get('/stats/:summonerName/refresh', async (req, res) => {
+  app.get('/champstats/:summonerName', async (req, res) => {
     try {
-      let count = await pullNewMatchesForSummoner(req.params.summonerName);
-      let stats = await buildSummonerStats(req.params.summonerName);
-      if (stats.acknowledged) {
-        res.sendStatus(200);
-      } else {
-        throw Error('Stats lookup failed');
+      const stats = (await pgdb.getChampStats(req.params.summonerName)).rows;
+      stats.forEach((champ) => {
+        champ.games = parseInt(champ.games);
+        champ.wins = parseInt(champ.wins);
+        champ.pentaKills = parseInt(champ.pentakills);
+        champ.losses = parseInt(champ.losses);
+        champ.winrate = Math.trunc((champ.wins / champ.games) * 100);
+        delete champ.pentakills;
+      });
+      res.send(stats);
+    } catch (error) {
+      console.error(error);
+      res.sendStatus(400);
+    }
+  });
+  app.get('/refresh/:summonerName', async (req, res) => {
+    try {
+      const summonerName = req.params.summonerName;
+      let puuid = await getPuuid(summonerName);
+      const response = (await pgdb.getLastUpdated(puuid)).rows[0];
+      let lastUpdated = 0;
+      if (response) {
+        lastUpdated = Date.parse(response.lastupdated);
       }
+      await pullNewMatchesForSummoner(summonerName, puuid, lastUpdated)
+      await pgdb.setLastUpdated(summonerName, puuid);
+      res.sendStatus(200);
     } catch (error) {
       console.error(error);
       res.sendStatus(400);
@@ -66,14 +97,22 @@ async function main() {
 
 main();
 
-async function pullNewMatchesForSummoner(summonerName: string) {
-  const response = await api.getSummonerPuuid(summonerName);
-  const puuid = response.data.puuid;
+async function getPuuid(summonerName: string) {
+  let puuid: string = await pgdb.getPuuid(summonerName);
+  if (typeof puuid !== 'string') {
+    puuid = (await api.getSummonerPuuid(summonerName)).data?.puuid;
+  }
+  if (typeof puuid !== 'string')
+    throw Error(`Invalid summoner name ${summonerName}`);
+  return puuid;
+}
+
+async function pullNewMatchesForSummoner(summonerName: string, puuid: string, timestamp: number = 0) {
   let matches: string[] = [];
   let count = 0;
   let areMoreMatches = true;
   while (areMoreMatches) {
-    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count);
+    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp);
     if (aramMatchResponse.data.length === 0) {
       areMoreMatches = false;
       break;
@@ -93,9 +132,10 @@ async function pullNewMatchesForSummoner(summonerName: string) {
   for (const match of newMatchIds) {
     const response = await api.getMatchData(match);
     newMatchData.push(response.data);
+    await saveMatchDataPostgres(response.data);
     matchSaveCount++;
     totalSaveCount++;
-    if(matchSaveCount > 5) {
+    if (matchSaveCount > 5) {
       const result = await Match.create(newMatchData);
       matchSaveCount = 0;
       newMatchData = [];
@@ -107,134 +147,9 @@ async function pullNewMatchesForSummoner(summonerName: string) {
   return result.length;
 }
 
-async function buildSummonerStats(summonerName: string, puuid: string = '') {
-  let response = await api.getSummonerPuuid(summonerName);
-  puuid = response.data.puuid;
-  summonerName = response.data.name;
-
-  const matches = await Match.find({ 'info.participants.puuid': puuid });
-  const summonerStats: SummonerStats = {
-    summonerName,
-    puuid,
-    games: 0,
-    wins: 0,
-    losses: 0,
-    winrate: 0,
-    pentaKills: 0,
-  };
-
-  const playerStats = [];
-  const champHash: ChampHash = {};
-  const allyMatches = [];
-  const allyHash: AllyHash = {};
-  const topAllies: AllyStats[] = [];
-
-  for (const match of matches) {
-    if (!match.info?.participants) continue;
-    for (const participant of match.info.participants) {
-      if (participant.puuid === puuid) {
-        playerStats.push(participant);
-      } else {
-        allyMatches.push(participant);
-      }
-    }
+async function saveMatchDataPostgres(match: any) {
+  const matchid: string = match.metadata.matchId;
+  for (const participant of match.info.participants) {
+    const response = await pgdb.insertMatch(matchid, participant);
   }
-
-  for (const { championName, win, pentaKills } of playerStats) {
-    //Summoner data
-    summonerStats.games++;
-    if (win) {
-      summonerStats.wins++;
-    } else {
-      summonerStats.losses++;
-    }
-    if (pentaKills) {
-      summonerStats.pentaKills += pentaKills;
-    }
-
-    //Champion data splitting
-    if (!championName) break;
-    if (!champHash[championName]) {
-      champHash[championName] = {
-        champion: championName,
-        games: 0,
-        wins: 0,
-        losses: 0,
-        winrate: 0,
-        pentaKills: 0,
-      };
-    }
-    champHash[championName].games++;
-    if (win) {
-      champHash[championName].wins++;
-    } else {
-      champHash[championName].losses++;
-    }
-    if (pentaKills) champHash[championName].pentaKills += pentaKills;
-  }
-
-  for (const match of allyMatches) {
-    const allySummonerName = match.summonerName;
-    const win = match.win;
-    if(!allySummonerName) continue;
-    if(!allyHash[allySummonerName]) {
-      allyHash[allySummonerName] = {
-        summonerName: allySummonerName,
-        games: 0,
-        wins: 0,
-        losses: 0,
-        winrate: 0,
-      }
-    }
-
-    allyHash[allySummonerName].games++;
-    if(win) {
-      allyHash[allySummonerName].wins++;
-    } else {
-      allyHash[allySummonerName].losses++;
-    }
-  }
-
-
-  //Summoner data calculations
-  summonerStats.winrate = Math.trunc(
-    (summonerStats.wins / summonerStats.games) * 100
-  );
-
-  //Champion data calculations and array building, then sort by games
-  const champDataArray: ChampStats[] = [];
-  Object.values(champHash).forEach((champ) => {
-    champ.winrate = Math.trunc((champ.wins / champ.games) * 100);
-    champDataArray.push(champ);
-  });
-  champDataArray.sort((a, b) => b.games - a.games);
-
-  //Ally data calculations and sorting
-  for (const summoner in allyHash) {
-    if(allyHash[summoner].games > 5) {
-      topAllies.push(allyHash[summoner]);
-    }
-  }
-  topAllies.forEach((ally) => {
-    ally.winrate = Math.trunc((ally.wins / ally.games) * 100)
-  })
-  topAllies.sort((a,b) => b.games - a.games);
-
-
-  const dbResponse = await Stats.updateOne(
-    { puuid },
-    {
-      puuid,
-      summonerName,
-      lowerCaseName: summonerName.toLowerCase(),
-      champStats: champDataArray,
-      matchStats: summonerStats,
-      allyStats: topAllies,
-    },
-    {
-      upsert: true,
-    }
-  );
-
-  return dbResponse;
 }
