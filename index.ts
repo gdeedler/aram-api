@@ -1,13 +1,9 @@
 import express from 'express';
 import morgan from 'morgan';
-import mongoose from 'mongoose';
 import api from './riotApi';
 import cors from 'cors';
-import { Match, Stats } from './db';
 import pgdb from './pgdb';
 require('dotenv').config();
-
-mongoose.set('strictQuery', true);
 
 const app = express();
 const port = 3010;
@@ -16,8 +12,6 @@ app.use(morgan('short'));
 app.use(cors());
 
 async function main() {
-  await mongoose.connect('mongodb://localhost:27017/aram-matches');
-  console.log('Connected to DB');
 
   app.get('/summonerstats/:summonerName', async (req, res) => {
     try {
@@ -112,7 +106,7 @@ async function pullNewMatchesForSummoner(summonerName: string, puuid: string, ti
   let count = 0;
   let areMoreMatches = true;
   while (areMoreMatches) {
-    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp);
+    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp / 1000);
     if (aramMatchResponse.data.length === 0) {
       areMoreMatches = false;
       break;
@@ -122,8 +116,10 @@ async function pullNewMatchesForSummoner(summonerName: string, puuid: string, ti
   }
   const newMatchIds: string[] = [];
   for (const match of matches) {
-    const documentExists = await Match.count({ 'metadata.matchId': match });
-    if (!documentExists) newMatchIds.push(match);
+    const exists = (await pgdb.matchExists(match)).rowCount;
+    if(!exists) {
+      newMatchIds.push(match);
+    }
   }
   console.log(`${newMatchIds.length} matches to save`);
   let newMatchData = [];
@@ -135,16 +131,10 @@ async function pullNewMatchesForSummoner(summonerName: string, puuid: string, ti
     await saveMatchDataPostgres(response.data);
     matchSaveCount++;
     totalSaveCount++;
-    if (matchSaveCount > 5) {
-      const result = await Match.create(newMatchData);
-      matchSaveCount = 0;
-      newMatchData = [];
-      console.log(`${result.length} matches saved to database`);
-    }
+    console.count('Saved match to database');
   }
-  const result = await Match.create(newMatchData);
   console.log(`${totalSaveCount} matches saved to database`);
-  return result.length;
+  return 1;
 }
 
 async function saveMatchDataPostgres(match: any) {

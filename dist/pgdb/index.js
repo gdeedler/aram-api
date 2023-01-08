@@ -82,4 +82,9 @@ exports.default = {
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [puuid, matchid, win, pentaKills, championName, summonerName]);
     },
+    matchExists: (matchid) => {
+        return pool.query(`
+      SELECT * from performance WHERE matchid = $1
+      `, [matchid]);
+    }
 };

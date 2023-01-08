@@ -93,4 +93,12 @@ export default {
       [puuid, matchid, win, pentaKills, championName, summonerName]
     );
   },
+  matchExists: (matchid: string) => {
+    return pool.query(
+      `
+      SELECT * from performance WHERE matchid = $1
+      `,
+      [matchid]
+    )
+  }
 };

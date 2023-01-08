@@ -14,21 +14,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const morgan_1 = __importDefault(require("morgan"));
-const mongoose_1 = __importDefault(require("mongoose"));
 const riotApi_1 = __importDefault(require("./riotApi"));
 const cors_1 = __importDefault(require("cors"));
-const db_1 = require("./db");
 const pgdb_1 = __importDefault(require("./pgdb"));
 require('dotenv').config();
-mongoose_1.default.set('strictQuery', true);
 const app = (0, express_1.default)();
 const port = 3010;
 app.use((0, morgan_1.default)('short'));
 app.use((0, cors_1.default)());
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
-        yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
-        console.log('Connected to DB');
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const stats = (yield pgdb_1.default.getSummonerAndAllyStats(req.params.summonerName)).rows;
@@ -124,7 +119,7 @@ function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {
         let count = 0;
         let areMoreMatches = true;
         while (areMoreMatches) {
-            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count, timestamp);
+            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count, timestamp / 1000);
             if (aramMatchResponse.data.length === 0) {
                 areMoreMatches = false;
                 break;
@@ -134,9 +129,10 @@ function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {
         }
         const newMatchIds = [];
         for (const match of matches) {
-            const documentExists = yield db_1.Match.count({ 'metadata.matchId': match });
-            if (!documentExists)
+            const exists = (yield pgdb_1.default.matchExists(match)).rowCount;
+            if (!exists) {
                 newMatchIds.push(match);
+            }
         }
         console.log(`${newMatchIds.length} matches to save`);
         let newMatchData = [];
@@ -148,16 +144,10 @@ function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {
             yield saveMatchDataPostgres(response.data);
             matchSaveCount++;
             totalSaveCount++;
-            if (matchSaveCount > 5) {
-                const result = yield db_1.Match.create(newMatchData);
-                matchSaveCount = 0;
-                newMatchData = [];
-                console.log(`${result.length} matches saved to database`);
-            }
+            console.count('Saved match to database');
         }
-        const result = yield db_1.Match.create(newMatchData);
         console.log(`${totalSaveCount} matches saved to database`);
-        return result.length;
+        return 1;
     });
 }
 function saveMatchDataPostgres(match) {
