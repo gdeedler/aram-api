@@ -29,15 +29,25 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
-        app.get('/livestats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                const activeGameInfo = yield getActiveGameStats(req.params.summonerName);
-                res.json(activeGameInfo.data.gameMode);
+        app.get('/livestats/:summonerNames', (req, res) => __awaiter(this, void 0, void 0, function* () {
+            const summonerNames = req.params.summonerNames.split(',');
+            const gameInfos = [];
+            for (const summonerName of summonerNames) {
+                try {
+                    const activeGameInfo = yield getActiveGameStats(summonerName);
+                    gameInfos.push({
+                        summonerName,
+                        gameMode: activeGameInfo.data.gameMode
+                    });
+                }
+                catch (err) {
+                    gameInfos.push({
+                        summonerName,
+                        gameMode: 'INACTIVE'
+                    });
+                }
             }
-            catch (err) {
-                console.error(err);
-                res.sendStatus(404);
-            }
+            res.json(gameInfos);
         }));
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {

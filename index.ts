@@ -19,14 +19,24 @@ async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
-  app.get('/livestats/:summonerName', async (req, res) => {
-    try {
-      const activeGameInfo = await getActiveGameStats(req.params.summonerName)
-      res.json(activeGameInfo.data.gameMode)
-    } catch (err) {
-      console.error(err)
-      res.sendStatus(404)
+  app.get('/livestats/:summonerNames', async (req, res) => {
+    const summonerNames = req.params.summonerNames.split(',')
+    const gameInfos = []
+    for (const summonerName of summonerNames) {
+      try {
+        const activeGameInfo = await getActiveGameStats(summonerName)
+        gameInfos.push({
+          summonerName,
+          gameMode: activeGameInfo.data.gameMode
+        })
+      } catch (err) {
+        gameInfos.push({
+          summonerName,
+          gameMode: 'INACTIVE'
+        })
+      }
     }
+    res.json(gameInfos)
   })
 
   app.get('/summonerstats/:summonerName', async (req, res) => {
