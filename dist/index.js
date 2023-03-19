@@ -150,7 +150,7 @@ function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {
         let count = 0;
         let areMoreMatches = true;
         while (areMoreMatches) {
-            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count, timestamp);
+            const aramMatchResponse = yield riotApi_1.default.getAramMatchIds(puuid, 100, count, timestamp / 1000);
             if (aramMatchResponse.data.length === 0) {
                 areMoreMatches = false;
                 break;
