@@ -29,25 +29,16 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
-        app.get('/livestats/:summonerNames', (req, res) => __awaiter(this, void 0, void 0, function* () {
-            const summonerNames = req.params.summonerNames.split(',');
-            const gameInfos = [];
-            for (const summonerName of summonerNames) {
-                try {
-                    const activeGameInfo = yield getActiveGameStats(summonerName);
-                    gameInfos.push({
-                        summonerName,
-                        gameMode: activeGameInfo.data.gameMode
-                    });
-                }
-                catch (err) {
-                    gameInfos.push({
-                        summonerName,
-                        gameMode: 'INACTIVE'
-                    });
-                }
+        app.get('/livestats', (req, res) => __awaiter(this, void 0, void 0, function* () {
+            let summonerQuery = req.query.summonerName;
+            if (!summonerQuery) {
+                res.sendStatus(400);
+                return;
             }
-            res.json(gameInfos);
+            const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery];
+            const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''));
+            const response = yield Promise.all(gameInfos);
+            res.json(response);
         }));
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
@@ -149,9 +140,20 @@ function getSummonerId(summonerName) {
 }
 function getActiveGameStats(summonerName) {
     return __awaiter(this, void 0, void 0, function* () {
-        const summonerId = yield getSummonerId(summonerName);
-        console.log(summonerId);
-        return riotApi_1.default.getActiveGameInfo(summonerId);
+        try {
+            const summonerId = yield getSummonerId(summonerName);
+            const gameStats = yield riotApi_1.default.getActiveGameInfo(summonerId);
+            return {
+                summonerName,
+                gameMode: gameStats.data.gameMode
+            };
+        }
+        catch (err) {
+            return {
+                summonerName,
+                gameMode: 'INACTIVE'
+            };
+        }
     });
 }
 function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {

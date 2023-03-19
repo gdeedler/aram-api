@@ -19,24 +19,17 @@ async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
-  app.get('/livestats/:summonerNames', async (req, res) => {
-    const summonerNames = req.params.summonerNames.split(',')
-    const gameInfos = []
-    for (const summonerName of summonerNames) {
-      try {
-        const activeGameInfo = await getActiveGameStats(summonerName)
-        gameInfos.push({
-          summonerName,
-          gameMode: activeGameInfo.data.gameMode
-        })
-      } catch (err) {
-        gameInfos.push({
-          summonerName,
-          gameMode: 'INACTIVE'
-        })
-      }
+  app.get('/livestats', async (req, res) => {
+    let summonerQuery = req.query.summonerName
+    if (!summonerQuery) {
+      res.sendStatus(400)
+      return
     }
-    res.json(gameInfos)
+    const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery]
+
+    const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
+    const response = await Promise.all(gameInfos)
+    res.json(response)
   })
 
   app.get('/summonerstats/:summonerName', async (req, res) => {
@@ -134,10 +127,20 @@ async function getSummonerId(summonerName: string) {
   return summonerId;
 }
 
-async function getActiveGameStats(summonerName: string) {
-  const summonerId = await getSummonerId(summonerName)
-  console.log(summonerId)
-  return api.getActiveGameInfo(summonerId)
+async function getActiveGameStats(summonerName: string ) {
+  try {
+    const summonerId = await getSummonerId(summonerName)
+    const gameStats = await api.getActiveGameInfo(summonerId)
+    return {
+      summonerName,
+      gameMode: gameStats.data.gameMode
+    }
+  } catch (err) {
+    return {
+      summonerName,
+      gameMode: 'INACTIVE'
+    }
+  }
 }
 
 async function pullNewMatchesForSummoner(summonerName: string, puuid: string, timestamp: number = 0) {
