@@ -19,6 +19,16 @@ async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
+  app.get('/livestats/:summonerName', async (req, res) => {
+    try {
+      const activeGameInfo = await getActiveGameStats(req.params.summonerName)
+      res.json(activeGameInfo.data.gameMode)
+    } catch (err) {
+      console.error(err)
+      res.sendStatus(404)
+    }
+  })
+
   app.get('/summonerstats/:summonerName', async (req, res) => {
     try {
       const stats = (
@@ -105,6 +115,19 @@ async function getPuuid(summonerName: string) {
   if (typeof puuid !== 'string')
     throw Error(`Invalid summoner name ${summonerName}`);
   return puuid;
+}
+
+async function getSummonerId(summonerName: string) {
+  const summonerId = (await api.getSummonerPuuid(summonerName)).data?.id;
+  if (typeof summonerId !== 'string')
+    throw Error(`Invalid summoner name ${summonerName}`);
+  return summonerId;
+}
+
+async function getActiveGameStats(summonerName: string) {
+  const summonerId = await getSummonerId(summonerName)
+  console.log(summonerId)
+  return api.getActiveGameInfo(summonerId)
 }
 
 async function pullNewMatchesForSummoner(summonerName: string, puuid: string, timestamp: number = 0) {

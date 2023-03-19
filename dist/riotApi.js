@@ -44,4 +44,7 @@ exports.default = {
     getMatchData: (matchId) => {
         return api.get(`https://americas.api.riotgames.com/lol/match/v5/matches/${matchId}`);
     },
+    getActiveGameInfo: (summonerId) => {
+        return api.get(`https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/${summonerId}`);
+    }
 };

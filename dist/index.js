@@ -29,6 +29,16 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
+        app.get('/livestats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
+            try {
+                const activeGameInfo = yield getActiveGameStats(req.params.summonerName);
+                res.json(activeGameInfo.data.gameMode);
+            }
+            catch (err) {
+                console.error(err);
+                res.sendStatus(404);
+            }
+        }));
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const stats = (yield pgdb_1.default.getSummonerAndAllyStats(req.params.summonerName)).rows;
@@ -116,6 +126,22 @@ function getPuuid(summonerName) {
         if (typeof puuid !== 'string')
             throw Error(`Invalid summoner name ${summonerName}`);
         return puuid;
+    });
+}
+function getSummonerId(summonerName) {
+    var _a;
+    return __awaiter(this, void 0, void 0, function* () {
+        const summonerId = (_a = (yield riotApi_1.default.getSummonerPuuid(summonerName)).data) === null || _a === void 0 ? void 0 : _a.id;
+        if (typeof summonerId !== 'string')
+            throw Error(`Invalid summoner name ${summonerName}`);
+        return summonerId;
+    });
+}
+function getActiveGameStats(summonerName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const summonerId = yield getSummonerId(summonerName);
+        console.log(summonerId);
+        return riotApi_1.default.getActiveGameInfo(summonerId);
     });
 }
 function pullNewMatchesForSummoner(summonerName, puuid, timestamp = 0) {
