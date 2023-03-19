@@ -135,7 +135,7 @@ async function pullNewMatchesForSummoner(summonerName: string, puuid: string, ti
   let count = 0;
   let areMoreMatches = true;
   while (areMoreMatches) {
-    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp);
+    const aramMatchResponse = await api.getAramMatchIds(puuid, 100, count, timestamp / 1000);
     if (aramMatchResponse.data.length === 0) {
       areMoreMatches = false;
       break;
