@@ -1,4 +1,13 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -23,11 +32,19 @@ const api = axios_1.default.create({
         return false;
     },
 });
+const summonerCache = {};
 exports.default = {
-    getSummonerPuuid: (summonerName) => {
-        return api.get(`https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/${summonerName}`);
-    },
+    getSummonerPuuid: (summonerName) => __awaiter(void 0, void 0, void 0, function* () {
+        console.log('getSummoner:', summonerName);
+        if (!summonerCache[summonerName]) {
+            console.log('getSummonerData', summonerName);
+            const response = yield api.get(`https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/${summonerName}`);
+            summonerCache[summonerName] = response;
+        }
+        return summonerCache[summonerName];
+    }),
     getAramMatchIds: (puuid, count, start, timestamp) => {
+        console.log('Get aram matches:', puuid, count);
         if (count > 100 || count < 1)
             count = 20;
         if (start < 0)
@@ -42,9 +59,11 @@ exports.default = {
         });
     },
     getMatchData: (matchId) => {
+        console.log('getMatchData:', matchId);
         return api.get(`https://americas.api.riotgames.com/lol/match/v5/matches/${matchId}`);
     },
     getActiveGameInfo: (summonerId) => {
+        console.log('getActiveGameInfo:', summonerId);
         return api.get(`https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/${summonerId}`);
     }
 };
