@@ -133,7 +133,10 @@ async function getActiveGameStats(summonerName: string ) {
     const gameStats = await api.getActiveGameInfo(summonerId)
     return {
       summonerName,
-      gameMode: gameStats.data.gameMode
+      gameMode: gameStats.data.gameMode,
+      gameId: gameStats.data.gameId,
+      gameLength: gameStats.data.gameLength,
+      champion: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId)
     }
   } catch (err) {
     return {

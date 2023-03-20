@@ -145,7 +145,10 @@ function getActiveGameStats(summonerName) {
             const gameStats = yield riotApi_1.default.getActiveGameInfo(summonerId);
             return {
                 summonerName,
-                gameMode: gameStats.data.gameMode
+                gameMode: gameStats.data.gameMode,
+                gameId: gameStats.data.gameId,
+                gameLength: gameStats.data.gameLength,
+                champion: gameStats.data.participants.find((participant) => summonerId === participant.summonerId)
             };
         }
         catch (err) {
