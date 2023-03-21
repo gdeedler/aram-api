@@ -5,6 +5,7 @@ import api from './riotApi';
 import cors from 'cors';
 import { Match, Stats } from './db';
 import pgdb from './pgdb';
+import fs from 'fs/promises'
 require('dotenv').config();
 
 mongoose.set('strictQuery', true);
@@ -18,6 +19,15 @@ app.use(cors());
 async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
+  const dataDragon: DataDragon = JSON.parse(await fs.readFile('./lib/datadragon.json', { encoding: 'utf8' }))
+  console.log('Data dragon imported')
+  const championKeyMap: ChampionKeyMap = {}
+  for(const {id, key, name} of Object.values(dataDragon.data)) {
+    championKeyMap[key] = {
+      id,
+      name
+    }
+  }
 
   app.get('/livestats', async (req, res) => {
     let summonerQuery = req.query.summonerName
@@ -29,6 +39,10 @@ async function main() {
 
     const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
     const response = await Promise.all(gameInfos)
+    const formattedResponse = response.map(({champion}) => {
+      champion.name = championKeyMap[champion.championId].name
+      champion.id = championKeyMap[champion.championId].id
+    })
     res.json(response)
   })
 

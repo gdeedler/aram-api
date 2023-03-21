@@ -42,3 +42,20 @@ interface SummonerStats {
   pentaKills: number;
   winrate: number;
 }
+
+interface DataDragonChampion {
+  id: string;
+  key: number;
+  name: string;
+}
+
+interface DataDragon {
+  data: DataDragonChampion[];
+}
+
+interface ChampionKeyMap {
+  [key: number]: {
+    id: string,
+    name: string
+  }
+}

@@ -19,6 +19,7 @@ const riotApi_1 = __importDefault(require("./riotApi"));
 const cors_1 = __importDefault(require("cors"));
 const db_1 = require("./db");
 const pgdb_1 = __importDefault(require("./pgdb"));
+const promises_1 = __importDefault(require("fs/promises"));
 require('dotenv').config();
 mongoose_1.default.set('strictQuery', true);
 const app = (0, express_1.default)();
@@ -29,6 +30,15 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         yield mongoose_1.default.connect('mongodb://localhost:27017/aram-matches');
         console.log('Connected to DB');
+        const dataDragon = JSON.parse(yield promises_1.default.readFile('./lib/datadragon.json', { encoding: 'utf8' }));
+        console.log('Data dragon imported');
+        const championKeyMap = {};
+        for (const { id, key, name } of Object.values(dataDragon.data)) {
+            championKeyMap[key] = {
+                id,
+                name
+            };
+        }
         app.get('/livestats', (req, res) => __awaiter(this, void 0, void 0, function* () {
             let summonerQuery = req.query.summonerName;
             if (!summonerQuery) {
@@ -38,6 +48,10 @@ function main() {
             const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery];
             const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''));
             const response = yield Promise.all(gameInfos);
+            const formattedResponse = response.map(({ champion }) => {
+                champion.name = championKeyMap[champion.championId].name;
+                champion.id = championKeyMap[champion.championId].id;
+            });
             res.json(response);
         }));
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
