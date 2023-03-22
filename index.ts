@@ -40,6 +40,7 @@ async function main() {
     const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
     const response = await Promise.all(gameInfos)
     const formattedResponse = response.map(({champion}) => {
+      if (!champion) return
       champion.name = championKeyMap[champion.championId].name
       champion.id = championKeyMap[champion.championId].id
     })
