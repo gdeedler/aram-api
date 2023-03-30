@@ -56,6 +56,18 @@ function main() {
             });
             res.json(response);
         }));
+        app.get('/livestats/v2', (req, res) => __awaiter(this, void 0, void 0, function* () {
+            let summonerQuery = req.query.summonerName;
+            if (!summonerQuery) {
+                res.sendStatus(400);
+                return;
+            }
+            const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery];
+            const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''));
+            const response = yield Promise.all(gameInfos);
+            const formattedResponse = aggregateGameData(response);
+            res.json(formattedResponse);
+        }));
         app.get('/summonerstats/:summonerName', (req, res) => __awaiter(this, void 0, void 0, function* () {
             try {
                 const stats = (yield pgdb_1.default.getSummonerAndAllyStats(req.params.summonerName)).rows;
@@ -130,6 +142,39 @@ function main() {
             }
         }));
         app.listen(port, () => console.log(`Server listening on port ${port}`));
+        function aggregateGameData(response, getInactive = false) {
+            const gameIdSet = new Set();
+            const aggregatedGamers = response.reduce((previousValue, currentValue) => {
+                const gameId = currentValue.gameId || 0;
+                gameIdSet.add(gameId);
+                let gameList = previousValue[gameId];
+                gameList = !((gameList === null || gameList === void 0 ? void 0 : gameList.length) > 0) ? [] : gameList;
+                return Object.assign(Object.assign({}, previousValue), { [gameId]: [...gameList, currentValue] });
+            }, {});
+            if (!getInactive) {
+                gameIdSet.delete(0);
+            }
+            const gamerArray = [];
+            gameIdSet.forEach((gameId) => {
+                const game = aggregatedGamers[gameId];
+                const gamers = game.map(currentValue => {
+                    var _a;
+                    return ({
+                        summonerName: currentValue.summonerName,
+                        champion: championKeyMap[((_a = currentValue.champion) === null || _a === void 0 ? void 0 : _a.championId) || 0].name || 'error'
+                    });
+                });
+                const formattedGame = {
+                    gameMode: game[0].gameMode,
+                    gameId: game[0].gameId,
+                    // this will mean that the calculated gametime will be based on the earliest api call to complete xd
+                    gameLength: game[0].gameLength,
+                    gamers
+                };
+                gamerArray.push(formattedGame);
+            });
+            return { games: gamerArray };
+        }
     });
 }
 main();
