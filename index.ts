@@ -202,6 +202,7 @@ async function getActiveGameStats(summonerName: string ) {
       gameMode: gameStats.data.gameMode,
       gameId: gameStats.data.gameId,
       gameLength: gameStats.data.gameLength,
+      gameStartTime: gameStats.data.gameStartTime,
       champion: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId)
     }
   } catch (err) {
