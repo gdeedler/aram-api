@@ -1,11 +1,12 @@
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
 import api from './riotApi';
 import cors from 'cors';
-import { Match, Stats } from './db';
+import {Match} from './db';
 import pgdb from './pgdb';
 import fs from 'fs/promises'
+
 require('dotenv').config();
 
 mongoose.set('strictQuery', true);
@@ -46,6 +47,20 @@ async function main() {
     })
     res.json(response)
   })
+
+    app.get('/livestats/v2', async (req, res) => {
+        let summonerQuery = req.query.summonerName
+        if (!summonerQuery) {
+            res.sendStatus(400)
+            return
+        }
+        const summonerNames = Array.isArray(summonerQuery) ? summonerQuery : [summonerQuery]
+
+        const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
+        const response = await Promise.all(gameInfos)
+        const formattedResponse = aggregateGameData(response);
+        res.json(formattedResponse)
+    })
 
   app.get('/summonerstats/:summonerName', async (req, res) => {
     try {
@@ -121,6 +136,42 @@ async function main() {
   });
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
+
+  function aggregateGameData(response: Awaited<{ summonerName: string, gameMode: string, gameId?: number, gameLength?: number, champion?: { summonerId: string, championId: number } }>[], getInactive: boolean = false) {
+    const gameIdSet = new Set<number>();
+    const aggregatedGamers = response.reduce((previousValue, currentValue) => {
+      const gameId = currentValue.gameId || 0;
+      gameIdSet.add(gameId);
+      let gameList = previousValue[gameId];
+      gameList = !(gameList?.length > 0) ? [] : gameList
+      return {
+        ...previousValue,
+        [gameId]: [...gameList, currentValue]
+      }
+
+    }, {} as { [p: string]: any[] })
+    if (!getInactive) {
+        gameIdSet.delete(0);
+    }
+    const gamerArray: any[] = [];
+    gameIdSet.forEach((gameId) => {
+      const game = aggregatedGamers[gameId];
+      const gamers = game.map(currentValue => ({
+          summonerName: currentValue.summonerName,
+          champion: championKeyMap[currentValue.champion?.championId || 0].name || 'ERROR',
+          id: championKeyMap[currentValue.champion?.championId || 0].id || 'ERROR'
+      }));
+      const formattedGame = {
+          gameMode: game[0].gameMode,
+          gameId: game[0].gameId,
+        // this will mean that the calculated gametime will be based on the earliest api call to complete xd
+          gameLength: game[0].gameLength,
+          gamers
+      }
+      gamerArray.push(formattedGame)
+    });
+    return { games: gamerArray };
+  }
 }
 
 main();
@@ -160,6 +211,8 @@ async function getActiveGameStats(summonerName: string ) {
     }
   }
 }
+
+
 
 async function pullNewMatchesForSummoner(summonerName: string, puuid: string, timestamp: number = 0) {
   let matches: string[] = [];
