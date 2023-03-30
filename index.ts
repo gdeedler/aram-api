@@ -158,7 +158,8 @@ async function main() {
       const game = aggregatedGamers[gameId];
       const gamers = game.map(currentValue => ({
           summonerName: currentValue.summonerName,
-          champion: championKeyMap[currentValue.champion?.championId || 0].name || 'error'
+          champion: championKeyMap[currentValue.champion?.championId || 0].name || 'ERROR',
+          id: championKeyMap[currentValue.champion?.championId || 0].id || 'ERROR'
       }));
       const formattedGame = {
           gameMode: game[0].gameMode,
