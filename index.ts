@@ -20,7 +20,6 @@ app.use(cors());
 async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
-
   const dataDragon: DataDragon = JSON.parse(await fs.readFile('./lib/datadragon.json', { encoding: 'utf8' }))
   console.log('Data dragon imported')
   const championKeyMap: ChampionKeyMap = {}
@@ -41,10 +40,10 @@ async function main() {
 
     const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
     const response = await Promise.all(gameInfos)
-    const formattedResponse = response.map(({ summoner }) => {
-      if (!summoner) return
-      summoner.name = championKeyMap[summoner.championId].name
-      summoner.id = championKeyMap[summoner.championId].id
+    const formattedResponse = response.map(({champion}) => {
+      if (!champion) return
+      champion.name = championKeyMap[champion.championId].name
+      champion.id = championKeyMap[champion.championId].id
     })
     res.json(response)
   })
@@ -59,7 +58,7 @@ async function main() {
 
         const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
         const response = await Promise.all(gameInfos)
-        const formattedResponse = aggregateGameData(response, true);
+        const formattedResponse = aggregateGameData(response);
         res.json(formattedResponse)
     })
 
@@ -165,7 +164,6 @@ async function main() {
           championName: championKeyMap[currentValue.championId || 0].name || 'ERROR',
           id: championKeyMap[currentValue.championId || 0].id || 'ERROR'
       }));
-      console.log(game[0])
       const formattedGame = {
         gameMode: game[0].gameMode,
         gameId: game[0].gameId,
