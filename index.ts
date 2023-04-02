@@ -20,7 +20,6 @@ app.use(cors());
 async function main() {
   await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
-
   const dataDragon: DataDragon = JSON.parse(await fs.readFile('./lib/datadragon.json', { encoding: 'utf8' }))
   console.log('Data dragon imported')
   const championKeyMap: ChampionKeyMap = {}
@@ -41,10 +40,10 @@ async function main() {
 
     const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
     const response = await Promise.all(gameInfos)
-    const formattedResponse = response.map(({ summoner }) => {
-      if (!summoner) return
-      summoner.name = championKeyMap[summoner.championId].name
-      summoner.id = championKeyMap[summoner.championId].id
+    const formattedResponse = response.map(({champion}) => {
+      if (!champion) return
+      champion.name = championKeyMap[champion.championId].name
+      champion.id = championKeyMap[champion.championId].id
     })
     res.json(response)
   })
@@ -59,7 +58,7 @@ async function main() {
 
         const gameInfos = summonerNames.map(summonerName => getActiveGameStats(summonerName + ''))
         const response = await Promise.all(gameInfos)
-        const formattedResponse = aggregateGameData(response, true);
+        const formattedResponse = aggregateGameData(response);
         res.json(formattedResponse)
     })
 
@@ -138,15 +137,10 @@ async function main() {
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 
-  function aggregateGameData(response: Awaited<{ summonerName: string, gameMode: string, gameId?: number, gameLength?: number, summoner?: { summonerId: string, championId: number }, participants?: { summonerId: string, championId: number }[] }>[], getInactive: boolean = false) {
+  function aggregateGameData(response: Awaited<{ summonerName: string, gameMode: string, gameId?: number, gameLength?: number, champion?: { summonerId: string, championId: number } }>[], getInactive: boolean = false) {
     const gameIdSet = new Set<number>();
-    const losers: string[] = [];
     const aggregatedGamers = response.reduce((previousValue, currentValue) => {
-      if (!currentValue.gameId) {
-        losers.push(currentValue.summonerName)
-        return previousValue
-      }
-      const gameId = currentValue.gameId;
+      const gameId = currentValue.gameId || 0;
       gameIdSet.add(gameId);
       let gameList = previousValue[gameId];
       gameList = !(gameList?.length > 0) ? [] : gameList
@@ -154,18 +148,19 @@ async function main() {
         ...previousValue,
         [gameId]: [...gameList, currentValue]
       }
+
     }, {} as { [p: string]: any[] })
-    const activeGames: any[] = [];
+    if (!getInactive) {
+        gameIdSet.delete(0);
+    }
+    const gamerArray: any[] = [];
     gameIdSet.forEach((gameId) => {
       const game = aggregatedGamers[gameId];
-      const unknownGamers:  { summonerId: string, championId: number, teamId: number, summonerName: string}[] = game[0].participants;
-      const gamerTeam = unknownGamers.find( ({summonerId}) => game[0].summoner.summonerId === summonerId)?.teamId || 0
-      const gamers = unknownGamers.filter(({teamId}) => teamId === gamerTeam).map(currentValue => ({
+      const gamers = game.map(currentValue => ({
           summonerName: currentValue.summonerName,
-          championName: championKeyMap[currentValue.championId || 0].name || 'ERROR',
-          id: championKeyMap[currentValue.championId || 0].id || 'ERROR'
+          champion: championKeyMap[currentValue.champion?.championId || 0].name || 'ERROR',
+          id: championKeyMap[currentValue.champion?.championId || 0].id || 'ERROR'
       }));
-      console.log(game[0])
       const formattedGame = {
         gameMode: game[0].gameMode,
         gameId: game[0].gameId,
@@ -173,9 +168,9 @@ async function main() {
         gameLength: game[0].gameLength,
         gamers
       }
-      activeGames.push(formattedGame)
+      gamerArray.push(formattedGame)
     });
-    return getInactive ? { activeGames, losers } : {activeGames};
+    return { games: gamerArray };
   }
 }
 
@@ -208,8 +203,7 @@ async function getActiveGameStats(summonerName: string ) {
       gameId: gameStats.data.gameId,
       gameLength: gameStats.data.gameLength,
       gameStartTime: gameStats.data.gameStartTime,
-      summoner: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId),
-      participants: gameStats.data.participants
+      champion: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId)
     }
   } catch (err) {
     return {
