@@ -18,7 +18,7 @@ app.use(morgan('short'));
 app.use(cors());
 
 async function main() {
-  // await mongoose.connect('mongodb://localhost:27017/aram-matches');
+  await mongoose.connect('mongodb://localhost:27017/aram-matches');
   console.log('Connected to DB');
 
   const dataDragon: DataDragon = JSON.parse(await fs.readFile('./lib/datadragon.json', { encoding: 'utf8' }))
@@ -202,14 +202,15 @@ async function getActiveGameStats(summonerName: string ) {
   try {
     const summonerId = await getSummonerId(summonerName)
     const gameStats = await api.getActiveGameInfo(summonerId)
+    const summoner = gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId);
     return {
       summonerName,
       gameMode: gameStats.data.gameMode,
       gameId: gameStats.data.gameId,
       gameLength: gameStats.data.gameLength,
       gameStartTime: gameStats.data.gameStartTime,
-      summoner: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId),
-      champion: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId),
+      summoner,
+      champion: summoner,
       participants: gameStats.data.participants
     }
   } catch (err) {
