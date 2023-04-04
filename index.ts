@@ -137,10 +137,15 @@ async function main() {
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 
-  function aggregateGameData(response: Awaited<{ summonerName: string, gameMode: string, gameId?: number, gameLength?: number, champion?: { summonerId: string, championId: number } }>[], getInactive: boolean = false) {
+  function aggregateGameData(response: Awaited<{ summonerName: string, gameMode: string, gameId?: number, gameLength?: number, summoner?: { summonerId: string, championId: number }, participants?: { summonerId: string, championId: number }[] }>[], getInactive: boolean = false) {
     const gameIdSet = new Set<number>();
+    const losers: string[] = [];
     const aggregatedGamers = response.reduce((previousValue, currentValue) => {
-      const gameId = currentValue.gameId || 0;
+      if (!currentValue.gameId) {
+        losers.push(currentValue.summonerName)
+        return previousValue
+      }
+      const gameId = currentValue.gameId;
       gameIdSet.add(gameId);
       let gameList = previousValue[gameId];
       gameList = !(gameList?.length > 0) ? [] : gameList
@@ -148,18 +153,16 @@ async function main() {
         ...previousValue,
         [gameId]: [...gameList, currentValue]
       }
-
     }, {} as { [p: string]: any[] })
-    if (!getInactive) {
-        gameIdSet.delete(0);
-    }
-    const gamerArray: any[] = [];
+    const activeGames: any[] = [];
     gameIdSet.forEach((gameId) => {
       const game = aggregatedGamers[gameId];
-      const gamers = game.map(currentValue => ({
+      const unknownGamers:  { summonerId: string, championId: number, teamId: number, summonerName: string}[] = game[0].participants;
+      const gamerTeam = unknownGamers.find( ({summonerId}) => game[0].summoner.summonerId === summonerId)?.teamId || 0
+      const gamers = unknownGamers.filter(({teamId}) => teamId === gamerTeam).map(currentValue => ({
           summonerName: currentValue.summonerName,
-          champion: championKeyMap[currentValue.champion?.championId || 0].name || 'ERROR',
-          id: championKeyMap[currentValue.champion?.championId || 0].id || 'ERROR'
+          championName: championKeyMap[currentValue.championId || 0].name || 'ERROR',
+          id: championKeyMap[currentValue.championId || 0].id || 'ERROR'
       }));
       const formattedGame = {
         gameMode: game[0].gameMode,
@@ -168,9 +171,9 @@ async function main() {
         gameLength: game[0].gameLength,
         gamers
       }
-      gamerArray.push(formattedGame)
+      activeGames.push(formattedGame)
     });
-    return { games: gamerArray };
+    return getInactive ? { activeGames, losers } : {activeGames};
   }
 }
 
@@ -197,13 +200,16 @@ async function getActiveGameStats(summonerName: string ) {
   try {
     const summonerId = await getSummonerId(summonerName)
     const gameStats = await api.getActiveGameInfo(summonerId)
+    const summoner = gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId);
     return {
       summonerName,
       gameMode: gameStats.data.gameMode,
       gameId: gameStats.data.gameId,
       gameLength: gameStats.data.gameLength,
       gameStartTime: gameStats.data.gameStartTime,
-      champion: gameStats.data.participants.find((participant: any) => summonerId === participant.summonerId)
+      summoner,
+      champion: summoner,
+      participants: gameStats.data.participants
     }
   } catch (err) {
     return {
