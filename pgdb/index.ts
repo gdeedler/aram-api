@@ -93,4 +93,17 @@ export default {
       [puuid, matchid, win, pentaKills, championName, summonerName]
     );
   },
+  getChampWinArray: (summonerName: string, champName: string) => {
+    return pool.query(
+      `
+      select
+        win
+      from performance
+      where trim(lower(summonername)) = $1
+        and trim(lower(champion)) = $2
+      order by matchid asc
+      `,
+      [sanitizeString(summonerName), sanitizeString(champName)]
+    )
+  }
 };

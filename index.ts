@@ -134,6 +134,24 @@ async function main() {
       res.sendStatus(400);
     }
   });
+  app.get('/champ-wins', async (req, res) => {
+    const {summonerName, champName}  = req.query
+    if (typeof summonerName !== 'string' || typeof champName !== 'string') {
+      res.status(400)
+      return
+    }
+    const response = await pgdb.getChampWinArray(summonerName, champName)
+    const wins = response.rows.map(row => row.win === true ? 1 : -1)
+    let sum = 0
+    const aggregate = []
+    for (let i = 0; i < wins.length; i++) {
+      sum += wins[i]
+      aggregate.push(sum)
+    }
+
+
+    res.json(aggregate)
+  })
 
   app.listen(port, () => console.log(`Server listening on port ${port}`));
 
