@@ -59,3 +59,8 @@ interface ChampionKeyMap {
     name: string
   }
 }
+
+interface ChampWinsQuery {
+  summonerName: string,
+  champName: string
+}
