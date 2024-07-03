@@ -18,7 +18,7 @@ app.use(morgan('short'));
 app.use(cors());
 
 async function main() {
-  await mongoose.connect('mongodb://localhost:27017/aram-matches');
+  await mongoose.connect('mongodb://localhost:27017/aram-matches?directConnection=true');
   console.log('Connected to DB');
   const dataDragon: DataDragon = JSON.parse(await fs.readFile('./lib/datadragon.json', { encoding: 'utf8' }))
   console.log('Data dragon imported')
