@@ -254,7 +254,7 @@ async function pullNewMatchesForSummoner(summonerName: string, puuid: string, ti
   }
   const newMatchIds: string[] = [];
   for (const match of matches) {
-    const documentExists = await Match.count({ 'metadata.matchId': match });
+    const documentExists = await Match.countDocuments({ 'metadata.matchId': match });
     if (!documentExists) newMatchIds.push(match);
   }
   console.log(`${newMatchIds.length} matches to save`);
